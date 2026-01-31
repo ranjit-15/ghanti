@@ -6,6 +6,45 @@ let motionEnabled = false;
 let lastShake = 0;
 const SHAKE_THRESHOLD = 15; // m/s^2 (tune if needed)
 const SHAKE_COOLDOWN = 900; // ms between shakes
+let audioUnlocked = false;
+
+// Visitor counter: use CountAPI and localStorage to count unique users once per browser
+const COUNT_API_NAMESPACE = 'ranjit-15-ghanti';
+const COUNT_API_KEY = 'visitors';
+const VISITOR_FLAG = 'ghanti_counted_v1';
+
+async function updateVisitorCount() {
+  const el = document.getElementById('visitorCount');
+  if (!el) return;
+  const hasCounted = !!localStorage.getItem(VISITOR_FLAG);
+  try {
+    if (!hasCounted) {
+      // increment counter for this new user
+      const resp = await fetch(`https://api.countapi.xyz/hit/${COUNT_API_NAMESPACE}/${COUNT_API_KEY}`);
+      if (resp.ok) {
+        const data = await resp.json();
+        el.textContent = String(data.value || 0);
+        localStorage.setItem(VISITOR_FLAG, String(Date.now()));
+        return;
+      }
+    }
+    // if already counted (or increment failed), just read current value
+    const getResp = await fetch(`https://api.countapi.xyz/get/${COUNT_API_NAMESPACE}/${COUNT_API_KEY}`);
+    if (getResp.ok) {
+      const d = await getResp.json();
+      el.textContent = String(d.value || 0);
+      return;
+    }
+  } catch (err) {
+    console.warn('Visitor count update failed', err);
+  }
+  el.textContent = '—';
+}
+
+// update count on load
+window.addEventListener('load', () => {
+  updateVisitorCount().catch(()=>{});
+});
 
 function ensureAudioContext() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -131,6 +170,16 @@ async function playBell() {
   const ctx = ensureAudioContext();
   const now = ctx.currentTime;
 
+  // Ensure AudioContext is running (resume on browsers that block autoplay)
+  if (ctx.state === 'suspended') {
+    try {
+      await ctx.resume();
+      console.log('AudioContext resumed');
+    } catch (err) {
+      console.warn('AudioContext resume failed:', err);
+    }
+  }
+
   const buffer = await loadBellBuffer();
   if (buffer) {
     const src = ctx.createBufferSource();
@@ -140,6 +189,8 @@ async function playBell() {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + Math.max(1.0, buffer.duration));
     src.connect(gain);
     gain.connect(ctx.destination);
+    src.onended = () => console.log('bell playback ended');
+    console.log('Starting bell playback, buffer duration:', buffer.duration);
     src.start(now);
   } else {
     // fallback: simple synthetic bell (lightweight)
@@ -241,15 +292,18 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) disableMotion();
 });
 
-// Initialize: set motion ON by default (UI + try to enable motion listener)
-try {
+// Try to enable motion by default: update UI and attach listener (may prompt on iOS)
+(async function initMotionDefault() {
   motionButton.classList.add('on');
   motionButton.textContent = 'Motion: On';
-  // attempt to enable motion; may prompt for permission on iOS
-  enableMotion().catch((err) => {
+  try {
+    await enableMotion();
+  } catch (err) {
     console.warn('Auto-enable motion failed:', err);
-    // keep UI in 'On' state but motion may be disabled until user grants permission
-  });
-} catch (err) {
-  console.warn('Motion init error', err);
-}
+  }
+  // If still not enabled (permission denied or unavailable), reflect that in UI
+  if (!motionEnabled) {
+    motionButton.classList.remove('on');
+    motionButton.textContent = 'Motion: Off';
+  }
+})();

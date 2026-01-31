@@ -6,6 +6,8 @@ html, body { height:100%; margin:0; font-family: system-ui, Arial, sans-serif; }
 .top-header .title { pointer-events:auto; display:flex; align-items:center; gap:12px; background:rgba(255,255,255,0.0); padding:8px 14px; border-radius:10px; }
 .top-header h1 { margin:0; font-size:32px; font-weight:800; color:#222; letter-spacing:0.6px; }
 .top-bell-icon { color:var(--bell-color); width:44px; height:44px; }
+ .visitor { position:absolute; right:18px; top:18px; pointer-events:auto; background: rgba(255,255,255,0.95); padding:6px 10px; border-radius:10px; font-weight:700; color:#222; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
+ .visitor #visitorCount { color:#0b6; }
 main { display:flex; align-items:center; justify-content:center; min-height: calc(100vh - 96px); }
 #bellButton { background:transparent; border:none; cursor:pointer; padding:18px; border-radius:18px; display:inline-flex; align-items:center; justify-content:center; color:var(--bell-color); transition:transform .15s ease, box-shadow .15s; position:relative; }
 #bellButton:focus { outline: 3px solid rgba(0,0,0,0.12); }
@@ -34,6 +36,7 @@ main { display:flex; align-items:center; justify-content:center; min-height: cal
 
 /* Mobile / small-screen: make bell fill viewport for easy tapping */
 @media (max-width: 640px) {
+	html, body { height:100%; overflow:hidden; }
 	main { padding:0; }
 	#bellButton {
 		width: 100vw;
@@ -74,8 +77,15 @@ main { display:flex; align-items:center; justify-content:center; min-height: cal
 	text-align: center;
 	cursor: pointer;
 	box-shadow: 0 8px 24px rgba(0,0,0,0.28);
+	will-change: transform, opacity;
+	-webkit-tap-highlight-color: transparent;
+	touch-action: manipulation;
+	-webkit-user-select: none;
+	user-select: none;
+	backface-visibility: hidden;
+	transform: translateX(-50%) translateZ(0);
 }
-.motion-button:active { transform: translateY(1px); }
+.motion-button:active { opacity: 0.97; }
 .motion-button.on { background: #2ecc71; color: #04260f; }
 
 @media (max-width: 420px) {
