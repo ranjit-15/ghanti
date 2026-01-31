@@ -306,8 +306,8 @@ function handleMotion(e) {
     // ensure audio context exists and try to resume it
     const ctx = ensureAudioContext();
     if (ctx && ctx.state === 'suspended') ctx.resume().catch(()=>{});
-    // Play multiple overlapping rings immediately for a stronger effect
-    try { playBell(); playBell(); playBell(); } catch (e) { playBell(); }
+    // Play a single bell sound per shake
+    try { await playBell(); } catch (e) { console.error('motion playBell error', e); }
     if (navigator.vibrate) navigator.vibrate(180);
   }
 }
