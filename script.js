@@ -5,18 +5,18 @@ const COUNT_API_NAMESPACE = 'ghanti';
 const COUNT_API_KEY = 'visitors';
 const VISITOR_FLAG = 'ghanti_visited_v1';
 
-// Vote keys and local storage flag
+// Vote keys and local storage flag (local-only storage)
 const VOTE_YES_KEY = 'votes_yes';
 const VOTE_NO_KEY = 'votes_no';
 const USER_VOTE_FLAG = 'ghanti_user_vote';
-// local fallback keys used when CountAPI is unreachable
-const LOCAL_VOTES_YES = 'local_votes_yes_v1';
-const LOCAL_VOTES_NO = 'local_votes_no_v1';
 
 const voteYesBtn = document.getElementById('voteYes');
 const voteNoBtn = document.getElementById('voteNo');
 const yesCountEl = document.getElementById('yesCount');
 const noCountEl = document.getElementById('noCount');
+// Cloudflare Worker endpoint (replace with your deployed worker URL)
+const WORKER_BASE = 'https://REPLACE_WITH_YOUR_WORKER_DOMAIN.workers.dev';
+const USE_WORKER = !WORKER_BASE.includes('REPLACE_WITH_YOUR_WORKER_DOMAIN');
 let audioCtx = null;
 let bellBuffer = null;
 let motionEnabled = false;
@@ -28,17 +28,36 @@ let audioUnlocked = false;
 // Visitor counter: local-only per-browser counting (no external API)
 async function updateVisitorCount() {
   const el = document.getElementById('visitorCount');
-  const badge = document.getElementById('modeBadge');
-  if (badge) badge.textContent = 'Mode: Local-only';
   if (!el) return;
-  const hasCounted = !!localStorage.getItem(VISITOR_FLAG);
-  let count = Number(localStorage.getItem('local_visitors_v1') || 0);
-  if (!hasCounted) {
-    count += 1;
-    localStorage.setItem('local_visitors_v1', String(count));
-    localStorage.setItem(VISITOR_FLAG, String(Date.now()));
+  // Prefer remote worker for global counting; fallback to local-only count
+  if (USE_WORKER) {
+    try {
+      const resp = await fetch(`${WORKER_BASE}/visitor`, { method: 'POST', credentials: 'include' });
+      if (resp.ok) {
+        const json = await resp.json();
+        el.textContent = String(json.visitors || 0);
+        return;
+      }
+    } catch (err) {
+      console.warn('Remote visitor increment failed, falling back to local', err);
+    }
   }
-  el.textContent = String(count);
+
+  // local fallback
+  try {
+    const hasCounted = !!localStorage.getItem(VISITOR_FLAG);
+    let count = Number(localStorage.getItem('local_visitors_v1') || 0);
+    if (!hasCounted) {
+      count = count + 1;
+      localStorage.setItem('local_visitors_v1', String(count));
+      localStorage.setItem(VISITOR_FLAG, String(Date.now()));
+      console.log('Visitor count incremented (local):', count);
+    }
+    el.textContent = String(count);
+  } catch (err) {
+    console.warn('updateVisitorCount failed (localStorage):', err);
+    el.textContent = '—';
+  }
 }
 
 // update count on load
@@ -54,21 +73,38 @@ function voteKey(choice) {
 }
 
 async function fetchCount(key) {
-  // local-only: read counts from localStorage. Keys used by this app:
-  // - visitor count stored at 'local_visitors_v1'
-  // - votes stored at VOTE_YES_KEY and VOTE_NO_KEY (fallback: LOCAL_VOTES_*)
+  // local-only: read counts from localStorage.
   try {
-    if (key === COUNT_API_KEY) {
-      return Number(localStorage.getItem('local_visitors_v1') || 0);
-    }
-    const v = Number(localStorage.getItem(key) || 0);
-    if (v) return v;
-    if (key === VOTE_YES_KEY) return Number(localStorage.getItem(LOCAL_VOTES_YES) || 0);
-    if (key === VOTE_NO_KEY) return Number(localStorage.getItem(LOCAL_VOTES_NO) || 0);
-    return 0;
+    if (key === COUNT_API_KEY) return Number(localStorage.getItem('local_visitors_v1') || 0);
+    return Number(localStorage.getItem(key) || 0);
   } catch (err) {
     console.warn('fetchCount (local) failed', err);
     return 0;
+  }
+}
+
+// Remote worker helpers
+async function remoteGetCounts() {
+  if (!USE_WORKER) return null;
+  try {
+    const resp = await fetch(`${WORKER_BASE}/counts`, { credentials: 'include' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return await resp.json();
+  } catch (err) {
+    console.warn('remoteGetCounts failed', err);
+    return null;
+  }
+}
+
+async function remotePostVote(choice) {
+  if (!USE_WORKER) return null;
+  try {
+    const resp = await fetch(`${WORKER_BASE}/vote`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ choice }) });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    return await resp.json();
+  } catch (err) {
+    console.warn('remotePostVote failed', err);
+    return null;
   }
 }
 
@@ -86,13 +122,24 @@ async function updateCount(key, amount = 1) {
 }
 
 async function updateVoteUI() {
-  let yes = await fetchCount(VOTE_YES_KEY);
-  let no = await fetchCount(VOTE_NO_KEY);
-  // if CountAPI unreachable, fall back to local stored counts
-  if (yes === null) yes = Number(localStorage.getItem(LOCAL_VOTES_YES) || 0);
-  if (no === null) no = Number(localStorage.getItem(LOCAL_VOTES_NO) || 0);
-  yesCountEl.textContent = (yes === null) ? '—' : String(yes);
-  noCountEl.textContent = (no === null) ? '—' : String(no);
+  // Prefer remote counts from worker
+  if (USE_WORKER) {
+    const remote = await remoteGetCounts();
+    if (remote) {
+      yesCountEl.textContent = String(remote.yes || 0);
+      noCountEl.textContent = String(remote.no || 0);
+    } else {
+      const yes = await fetchCount(VOTE_YES_KEY);
+      const no = await fetchCount(VOTE_NO_KEY);
+      yesCountEl.textContent = String(yes);
+      noCountEl.textContent = String(no);
+    }
+  } else {
+    const yes = await fetchCount(VOTE_YES_KEY);
+    const no = await fetchCount(VOTE_NO_KEY);
+    yesCountEl.textContent = String(yes);
+    noCountEl.textContent = String(no);
+  }
   const my = localStorage.getItem(USER_VOTE_FLAG);
   voteYesBtn.classList.toggle('active', my === 'yes');
   voteNoBtn.classList.toggle('active', my === 'no');
@@ -121,15 +168,20 @@ async function castVote(choice) {
   voteYesBtn.setAttribute('aria-pressed', choice === 'yes');
   voteNoBtn.setAttribute('aria-pressed', choice === 'no');
 
-  // try to update CountAPI; if it fails, increment local fallback counter
-  const key = voteKey(choice);
-  const updated = await updateCount(key, 1);
-  if (updated === null) {
-    // network failed — increment local fallback count
-    const localKey = (choice === 'yes') ? LOCAL_VOTES_YES : LOCAL_VOTES_NO;
-    const cur = Number(localStorage.getItem(localKey) || 0);
-    localStorage.setItem(localKey, String(cur + 1));
+  // Attempt to update remote worker; fall back to local storage
+  if (USE_WORKER) {
+    const remote = await remotePostVote(choice);
+    if (remote) {
+      yesCountEl.textContent = String(remote.yes || 0);
+      noCountEl.textContent = String(remote.no || 0);
+      return;
+    }
+    // remote failed — fall through to local fallback
+    console.warn('Falling back to local vote storage');
   }
+
+  const key = voteKey(choice);
+  await updateCount(key, 1);
   // refresh UI from whichever source is available
   await updateVoteUI();
 }
@@ -387,18 +439,6 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden) disableMotion();
 });
 
-// Try to enable motion by default: update UI and attach listener (may prompt on iOS)
-(async function initMotionDefault() {
-  motionButton.classList.add('on');
-  motionButton.textContent = 'Motion: On';
-  try {
-    await enableMotion();
-  } catch (err) {
-    console.warn('Auto-enable motion failed:', err);
-  }
-  // If still not enabled (permission denied or unavailable), reflect that in UI
-  if (!motionEnabled) {
-    motionButton.classList.remove('on');
-    motionButton.textContent = 'Motion: Off';
-  }
-})();
+// Motion defaults to OFF to avoid permission prompts and battery use.
+motionButton.classList.remove('on');
+motionButton.textContent = 'Motion: Off';

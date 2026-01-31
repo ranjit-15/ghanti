@@ -1,0 +1,17 @@
+name = "ghanti-worker"
+main = "./index.js"
+compatibility_date = "2026-01-31"
+
+type = "javascript"
+
+account_id = "REPLACE_WITH_YOUR_ACCOUNT_ID"
+
+workers_dev = true
+
+[[kv_namespaces]]
+binding = "VOTES_KV"
+id = "REPLACE_WITH_KV_ID"
+
+[vars]
+# Your GitHub Pages origin, e.g. https://ranjit-15.github.io/ghanti
+SITE_ORIGIN = "https://REPLACE_WITH_YOUR_GITHUB_PAGES_ORIGIN"
