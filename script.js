@@ -5,60 +5,6 @@ const COUNT_API_NAMESPACE = 'ghanti';
 const COUNT_API_KEY = 'visitors';
 const VISITOR_FLAG = 'ghanti_visited_v1';
 
-// Vote keys and local storage flag (local-only storage)
-const VOTE_YES_KEY = 'votes_yes';
-const VOTE_NO_KEY = 'votes_no';
-const USER_VOTE_FLAG = 'ghanti_user_vote';
-
-const voteYesBtn = document.getElementById('voteYes');
-const voteNoBtn = document.getElementById('voteNo');
-const yesCountEl = document.getElementById('yesCount');
-const noCountEl = document.getElementById('noCount');
-// Cloudflare Worker endpoint (replace with your deployed worker URL)
-const WORKER_BASE = 'https://ranjityadav982577rd.cloudflareaccess.com/cdn-cgi/access/certs';
-const USE_WORKER = !WORKER_BASE.includes('REPLACE_WITH_YOUR_WORKER_DOMAIN');
-// Turnstile sitekey for client-side widget (replace with your site key)
-const TURNSTILE_SITEKEY = '869f79dc9e261c8b7dd55d7fafaf492e027698ba29573a2502299ece1f14fc49';
-let turnstileWidgetId = null;
-let lastTurnstileToken = null;
-const turnstileResolvers = [];
-
-function turnstileCallback(token) {
-  lastTurnstileToken = token;
-  while (turnstileResolvers.length) {
-    const r = turnstileResolvers.shift();
-    try { r(token); } catch (e) {}
-  }
-}
-
-function initTurnstile() {
-  if (!USE_WORKER) return;
-  if (!TURNSTILE_SITEKEY || TURNSTILE_SITEKEY.includes('REPLACE')) return;
-  if (typeof turnstile === 'undefined') {
-    // script may not be loaded yet; try again later
-    window.addEventListener('turnstile:ready', () => initTurnstile(), { once: true });
-    return;
-  }
-  try {
-    turnstileWidgetId = turnstile.render('turnstileWidget', { sitekey: TURNSTILE_SITEKEY, size: 'invisible', callback: turnstileCallback });
-  } catch (err) {
-    console.warn('Turnstile init failed', err);
-  }
-}
-
-function requestTurnstileToken() {
-  if (!turnstileWidgetId) return Promise.resolve(null);
-  return new Promise((resolve) => {
-    if (lastTurnstileToken) {
-      const t = lastTurnstileToken;
-      lastTurnstileToken = null;
-      resolve(t);
-      return;
-    }
-    turnstileResolvers.push(resolve);
-    try { turnstile.execute(turnstileWidgetId); } catch (err) { console.warn('turnstile.execute failed', err); }
-  });
-}
 let audioCtx = null;
 let bellBuffer = null;
 let motionEnabled = false;
@@ -71,21 +17,6 @@ let audioUnlocked = false;
 async function updateVisitorCount() {
   const el = document.getElementById('visitorCount');
   if (!el) return;
-  // Prefer remote worker for global counting; fallback to local-only count
-  if (USE_WORKER) {
-    try {
-      const resp = await fetch(`${WORKER_BASE}/visitor`, { method: 'POST', credentials: 'include' });
-      if (resp.ok) {
-        const json = await resp.json();
-        el.textContent = String(json.visitors || 0);
-        return;
-      }
-    } catch (err) {
-      console.warn('Remote visitor increment failed, falling back to local', err);
-    }
-  }
-
-  // local fallback
   try {
     const hasCounted = !!localStorage.getItem(VISITOR_FLAG);
     let count = Number(localStorage.getItem('local_visitors_v1') || 0);
@@ -105,10 +36,6 @@ async function updateVisitorCount() {
 // update count on load
 window.addEventListener('load', () => {
   updateVisitorCount().catch(()=>{});
-  // load current votes
-  updateVoteUI().catch(()=>{});
-  // init Turnstile widget if available
-  setTimeout(initTurnstile, 400);
 });
 
 // ----- Voting (Yes / No) using CountAPI + localStorage for per-browser uniqueness -----

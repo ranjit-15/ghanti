@@ -6,7 +6,6 @@
   <title>Bell</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
-  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 </head>
 <body>
   <header class="top-header">
@@ -26,14 +25,7 @@
       </svg>
     </button>
   </main>
-  <section class="vote-panel" aria-label="Vote">
-    <div class="vote-question">Do you vote?</div>
-    <div class="vote-buttons">
-      <button id="voteYes" class="vote-btn yes" aria-pressed="false">Yes <span class="count" id="yesCount">—</span></button>
-      <button id="voteNo" class="vote-btn no" aria-pressed="false">No <span class="count" id="noCount">—</span></button>
-    </div>
-    <div id="turnstileWidget" style="display:none"></div>
-  </section>
+  <!-- Voting removed: site now uses a simple local visitor counter -->
   <button id="motionButton" class="motion-button" title="Enable motion (shake to ring)">Motion: Off</button>
   <script src="script.js"></script>
 </body>
