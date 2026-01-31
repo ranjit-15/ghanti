@@ -17,6 +17,48 @@ const noCountEl = document.getElementById('noCount');
 // Cloudflare Worker endpoint (replace with your deployed worker URL)
 const WORKER_BASE = 'https://REPLACE_WITH_YOUR_WORKER_DOMAIN.workers.dev';
 const USE_WORKER = !WORKER_BASE.includes('REPLACE_WITH_YOUR_WORKER_DOMAIN');
+// Turnstile sitekey for client-side widget (replace with your site key)
+const TURNSTILE_SITEKEY = 'REPLACE_WITH_TURNSTILE_SITEKEY';
+let turnstileWidgetId = null;
+let lastTurnstileToken = null;
+const turnstileResolvers = [];
+
+function turnstileCallback(token) {
+  lastTurnstileToken = token;
+  while (turnstileResolvers.length) {
+    const r = turnstileResolvers.shift();
+    try { r(token); } catch (e) {}
+  }
+}
+
+function initTurnstile() {
+  if (!USE_WORKER) return;
+  if (!TURNSTILE_SITEKEY || TURNSTILE_SITEKEY.includes('REPLACE')) return;
+  if (typeof turnstile === 'undefined') {
+    // script may not be loaded yet; try again later
+    window.addEventListener('turnstile:ready', () => initTurnstile(), { once: true });
+    return;
+  }
+  try {
+    turnstileWidgetId = turnstile.render('turnstileWidget', { sitekey: TURNSTILE_SITEKEY, size: 'invisible', callback: turnstileCallback });
+  } catch (err) {
+    console.warn('Turnstile init failed', err);
+  }
+}
+
+function requestTurnstileToken() {
+  if (!turnstileWidgetId) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    if (lastTurnstileToken) {
+      const t = lastTurnstileToken;
+      lastTurnstileToken = null;
+      resolve(t);
+      return;
+    }
+    turnstileResolvers.push(resolve);
+    try { turnstile.execute(turnstileWidgetId); } catch (err) { console.warn('turnstile.execute failed', err); }
+  });
+}
 let audioCtx = null;
 let bellBuffer = null;
 let motionEnabled = false;
@@ -65,6 +107,8 @@ window.addEventListener('load', () => {
   updateVisitorCount().catch(()=>{});
   // load current votes
   updateVoteUI().catch(()=>{});
+  // init Turnstile widget if available
+  setTimeout(initTurnstile, 400);
 });
 
 // ----- Voting (Yes / No) using CountAPI + localStorage for per-browser uniqueness -----

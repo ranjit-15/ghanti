@@ -99,6 +99,15 @@ async function handleVote(request) {
 
   const body = await request.json().catch(() => ({}));
   const choice = body && body.choice;
+  const token = body && body.token;
+  // Verify Turnstile token when provided
+  if (!token) {
+    return new Response('Missing Turnstile token', { status: 400, headers });
+  }
+  const verified = await verifyTurnstileToken(token, request);
+  if (!verified) {
+    return new Response('Turnstile verification failed', { status: 403, headers });
+  }
   if (!choice || (choice !== 'yes' && choice !== 'no')) {
     return new Response('Invalid choice', { status: 400, headers });
   }
@@ -127,6 +136,32 @@ async function handleVote(request) {
   const counts = await getCounts();
   if (setCookie) headers['Set-Cookie'] = setCookie;
   return new Response(JSON.stringify(counts), { status: 200, headers });
+}
+
+// Verify Turnstile token with Cloudflare
+async function verifyTurnstileToken(token, request) {
+  // TURNSTILE_SECRET must be set as a Wrangler secret (wrangler secret put TURNSTILE_SECRET)
+  if (typeof TURNSTILE_SECRET === 'undefined' || !TURNSTILE_SECRET) {
+    // If secret not present, fail safe (don't verify)
+    console.warn('TURNSTILE_SECRET is not set; rejecting vote for safety');
+    return false;
+  }
+  const verifyUrl = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+  const form = new URLSearchParams();
+  form.append('secret', TURNSTILE_SECRET);
+  form.append('response', token);
+  // remoteip optional
+  const ip = request.headers.get('CF-Connecting-IP') || request.headers.get('x-forwarded-for');
+  if (ip) form.append('remoteip', ip);
+  try {
+    const resp = await fetch(verifyUrl, { method: 'POST', body: form });
+    if (!resp.ok) return false;
+    const j = await resp.json();
+    return !!j.success;
+  } catch (err) {
+    console.error('Turnstile verify error', err);
+    return false;
+  }
 }
 
 function parseCookies(cookieHeader) {
