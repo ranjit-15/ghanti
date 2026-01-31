@@ -5,12 +5,26 @@ const COUNT_API_NAMESPACE = 'ghanti';
 const COUNT_API_KEY = 'visitors';
 const VISITOR_FLAG = 'ghanti_visited_v1';
 
+// Safe fallbacks for removed voting/worker elements (prevents runtime ReferenceError
+// if an older cached script or stray code still references these IDs)
+const voteYesBtn = document.getElementById('voteYes') || null;
+const voteNoBtn = document.getElementById('voteNo') || null;
+const yesCountEl = document.getElementById('yesCount') || null;
+const noCountEl = document.getElementById('noCount') || null;
+const VOTE_YES_KEY = 'votes_yes';
+const VOTE_NO_KEY = 'votes_no';
+const USER_VOTE_FLAG = 'ghanti_user_vote';
+const WORKER_BASE = '';
+const USE_WORKER = false;
+const TURNSTILE_SITEKEY = '';
+
 let audioCtx = null;
 let bellBuffer = null;
 let motionEnabled = false;
 let lastShake = 0;
 const SHAKE_THRESHOLD = 15; // m/s^2 (tune if needed)
-const SHAKE_COOLDOWN = 900; // ms between shakes
+// remove enforced cooldown so shakes can produce rapid/overlapping rings
+const SHAKE_COOLDOWN = 0; // ms between shakes
 let audioUnlocked = false;
 
 // Visitor counter: local-only per-browser counting (no external API)
@@ -38,131 +52,7 @@ window.addEventListener('load', () => {
   updateVisitorCount().catch(()=>{});
 });
 
-// ----- Voting (Yes / No) using CountAPI + localStorage for per-browser uniqueness -----
-function voteKey(choice) {
-  return choice === 'yes' ? VOTE_YES_KEY : VOTE_NO_KEY;
-}
-
-async function fetchCount(key) {
-  // local-only: read counts from localStorage.
-  try {
-    if (key === COUNT_API_KEY) return Number(localStorage.getItem('local_visitors_v1') || 0);
-    return Number(localStorage.getItem(key) || 0);
-  } catch (err) {
-    console.warn('fetchCount (local) failed', err);
-    return 0;
-  }
-}
-
-// Remote worker helpers
-async function remoteGetCounts() {
-  if (!USE_WORKER) return null;
-  try {
-    const resp = await fetch(`${WORKER_BASE}/counts`, { credentials: 'include' });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    return await resp.json();
-  } catch (err) {
-    console.warn('remoteGetCounts failed', err);
-    return null;
-  }
-}
-
-async function remotePostVote(choice) {
-  if (!USE_WORKER) return null;
-  try {
-    const resp = await fetch(`${WORKER_BASE}/vote`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ choice }) });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    return await resp.json();
-  } catch (err) {
-    console.warn('remotePostVote failed', err);
-    return null;
-  }
-}
-
-async function updateCount(key, amount = 1) {
-  try {
-    // local-only increment in localStorage
-    const cur = Number(localStorage.getItem(key) || 0);
-    const next = cur + amount;
-    localStorage.setItem(key, String(next));
-    return next;
-  } catch (err) {
-    console.warn('updateCount (local) failed', err);
-    return null;
-  }
-}
-
-async function updateVoteUI() {
-  // Prefer remote counts from worker
-  if (USE_WORKER) {
-    const remote = await remoteGetCounts();
-    if (remote) {
-      yesCountEl.textContent = String(remote.yes || 0);
-      noCountEl.textContent = String(remote.no || 0);
-    } else {
-      const yes = await fetchCount(VOTE_YES_KEY);
-      const no = await fetchCount(VOTE_NO_KEY);
-      yesCountEl.textContent = String(yes);
-      noCountEl.textContent = String(no);
-    }
-  } else {
-    const yes = await fetchCount(VOTE_YES_KEY);
-    const no = await fetchCount(VOTE_NO_KEY);
-    yesCountEl.textContent = String(yes);
-    noCountEl.textContent = String(no);
-  }
-  const my = localStorage.getItem(USER_VOTE_FLAG);
-  voteYesBtn.classList.toggle('active', my === 'yes');
-  voteNoBtn.classList.toggle('active', my === 'no');
-  voteYesBtn.setAttribute('aria-pressed', my === 'yes');
-  voteNoBtn.setAttribute('aria-pressed', my === 'no');
-  // enforce single chance: disable buttons after vote
-  if (my === 'yes' || my === 'no') {
-    voteYesBtn.disabled = true;
-    voteNoBtn.disabled = true;
-  } else {
-    voteYesBtn.disabled = false;
-    voteNoBtn.disabled = false;
-  }
-}
-
-async function castVote(choice) {
-  const prev = localStorage.getItem(USER_VOTE_FLAG);
-  // enforce single chance: if user already voted, do nothing
-  if (prev) return;
-  // optimistically lock user vote locally so they cannot vote again
-  localStorage.setItem(USER_VOTE_FLAG, choice);
-  voteYesBtn.disabled = true;
-  voteNoBtn.disabled = true;
-  voteYesBtn.classList.toggle('active', choice === 'yes');
-  voteNoBtn.classList.toggle('active', choice === 'no');
-  voteYesBtn.setAttribute('aria-pressed', choice === 'yes');
-  voteNoBtn.setAttribute('aria-pressed', choice === 'no');
-
-  // Attempt to update remote worker; fall back to local storage
-  if (USE_WORKER) {
-    const remote = await remotePostVote(choice);
-    if (remote) {
-      yesCountEl.textContent = String(remote.yes || 0);
-      noCountEl.textContent = String(remote.no || 0);
-      return;
-    }
-    // remote failed — fall through to local fallback
-    console.warn('Falling back to local vote storage');
-  }
-
-  const key = voteKey(choice);
-  await updateCount(key, 1);
-  // refresh UI from whichever source is available
-  await updateVoteUI();
-}
-
-voteYesBtn.addEventListener('click', async () => {
-  await castVote('yes');
-});
-voteNoBtn.addEventListener('click', async () => {
-  await castVote('no');
-});
+// Voting removed — no-op placeholders removed to avoid runtime errors
 
 function ensureAudioContext() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -391,11 +281,14 @@ function handleMotion(e) {
   const x = acc.x || 0; const y = acc.y || 0; const z = acc.z || 0;
   const mag = Math.sqrt(x*x + y*y + z*z);
   const now = Date.now();
-  if (mag > SHAKE_THRESHOLD && (now - lastShake) > SHAKE_COOLDOWN) {
+  if (mag > SHAKE_THRESHOLD) {
     lastShake = now;
     // resume audio context if needed
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
-    playBell();
+    // ensure audio context exists and try to resume it
+    const ctx = ensureAudioContext();
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(()=>{});
+    // Play multiple overlapping rings immediately for a stronger effect
+    try { playBell(); playBell(); playBell(); } catch (e) { playBell(); }
     if (navigator.vibrate) navigator.vibrate(180);
   }
 }
