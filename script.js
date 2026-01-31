@@ -180,9 +180,7 @@ async function generateSynthBellBuffer(durationSeconds = 3.0) {
 }
 
 async function playBell() {
-  try {
-    // wrap to surface any errors
-  } catch (e) { console.error('playBell wrapper error', e); }
+  // playBell: play the loaded buffer (or fallback synth)
   const ctx = ensureAudioContext();
   const now = ctx.currentTime;
 
@@ -196,42 +194,46 @@ async function playBell() {
     }
   }
 
-  const buffer = await loadBellBuffer();
+
   try {
+    const buffer = await loadBellBuffer();
     if (buffer) {
-    const src = ctx.createBufferSource();
-    src.buffer = buffer;
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(1, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + Math.max(1.0, buffer.duration));
-    src.connect(gain);
-    gain.connect(ctx.destination);
-    src.onended = () => console.log('bell playback ended');
-    console.log('Starting bell playback, buffer duration:', buffer.duration);
+      const src = ctx.createBufferSource();
+      src.buffer = buffer;
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(1, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + Math.max(1.0, buffer.duration));
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      src.onended = () => console.log('bell playback ended');
+      console.log('Starting bell playback, buffer duration:', buffer.duration);
       src.start(now);
     } else {
-    // fallback: simple synthetic bell (lightweight)
-    const master = ctx.createGain();
-    master.gain.setValueAtTime(0.9, now);
-    master.connect(ctx.destination);
+      // fallback: simple synthetic bell (lightweight)
+      const master = ctx.createGain();
+      master.gain.setValueAtTime(0.9, now);
+      master.connect(ctx.destination);
 
-    const partials = [880, 1320, 1760];
-    partials.forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(freq, now);
+      const partials = [880, 1320, 1760];
+      partials.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now);
 
-      const g = ctx.createGain();
-      g.gain.setValueAtTime(0.0001, now);
-      g.gain.exponentialRampToValueAtTime(1, now + 0.004 + i*0.002);
-      g.gain.exponentialRampToValueAtTime(0.00001, now + 1.4 + i*0.25);
+        const g = ctx.createGain();
+        g.gain.setValueAtTime(0.0001, now);
+        g.gain.exponentialRampToValueAtTime(1, now + 0.004 + i*0.002);
+        g.gain.exponentialRampToValueAtTime(0.00001, now + 1.4 + i*0.25);
 
-      osc.connect(g);
-      g.connect(master);
-      osc.start(now);
-      osc.stop(now + 2.0 + i*0.25);
-    });
-  } catch (e) { console.error('playBell runtime error', e); }
+        osc.connect(g);
+        g.connect(master);
+        osc.start(now);
+        osc.stop(now + 2.0 + i*0.25);
+      });
+    }
+  } catch (e) {
+    console.error('playBell runtime error', e);
+  }
 
   // visual feedback — keep animation long enough for ringing
   bellButton.classList.add('ringing');
@@ -329,3 +331,7 @@ document.addEventListener('visibilitychange', () => {
 // Motion defaults to OFF to avoid permission prompts and battery use.
 motionButton.classList.remove('on');
 motionButton.textContent = 'Motion: Off';
+
+// Add missing closing brace for script
+// (This closes the main script block if needed)
+
