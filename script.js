@@ -15,10 +15,10 @@ const voteNoBtn = document.getElementById('voteNo');
 const yesCountEl = document.getElementById('yesCount');
 const noCountEl = document.getElementById('noCount');
 // Cloudflare Worker endpoint (replace with your deployed worker URL)
-const WORKER_BASE = 'https://REPLACE_WITH_YOUR_WORKER_DOMAIN.workers.dev';
+const WORKER_BASE = 'https://ranjityadav982577rd.cloudflareaccess.com/cdn-cgi/access/certs';
 const USE_WORKER = !WORKER_BASE.includes('REPLACE_WITH_YOUR_WORKER_DOMAIN');
 // Turnstile sitekey for client-side widget (replace with your site key)
-const TURNSTILE_SITEKEY = 'REPLACE_WITH_TURNSTILE_SITEKEY';
+const TURNSTILE_SITEKEY = '869f79dc9e261c8b7dd55d7fafaf492e027698ba29573a2502299ece1f14fc49';
 let turnstileWidgetId = null;
 let lastTurnstileToken = null;
 const turnstileResolvers = [];
