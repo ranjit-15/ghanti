@@ -10,7 +10,7 @@ workers_dev = true
 
 [[kv_namespaces]]
 binding = "VOTES_KV"
-id = "REPLACE_WITH_KV_ID"
+id = "86148346aaa24b4bad825acc8f1a64a4"
 
 [vars]
 # Your GitHub Pages origin, e.g. https://ranjit-15.github.io/ghanti
