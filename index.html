@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bell</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+</head>
+<body>
+  <header class="top-header">
+    <div class="title">
+      <svg class="top-bell-icon" viewBox="0 0 24 24" width="40" height="40" aria-hidden="true">
+        <path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2zm6-6V11c0-3.07-1.64-5.64-4.5-6.32V4a1.5 1.5 0 1 0-3 0v0.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" fill="currentColor"/>
+      </svg>
+      <h1>Vote on Ghanti</h1>
+    </div>
+  </header>
+  <main>
+    <button id="bellButton" aria-label="Ring bell" title="Ring bell">
+      <span class="ring"></span>
+      <svg id="bellIcon" viewBox="0 0 24 24" width="140" height="140" aria-hidden="true">
+        <path d="M12 22a2 2 0 0 0 2-2H10a2 2 0 0 0 2 2zm6-6V11c0-3.07-1.64-5.64-4.5-6.32V4a1.5 1.5 0 1 0-3 0v0.68C7.64 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z" fill="currentColor"/>
+      </svg>
+    </button>
+  </main>
+  <button id="motionButton" class="motion-button" title="Enable motion (shake to ring)">Motion: Off</button>
+  <script src="script.js"></script>
+</body>
+</html>
