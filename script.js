@@ -1,3 +1,8 @@
+console.log('script.js loaded');
+window.addEventListener('error', (ev) => {
+  try { console.error('Uncaught error:', ev.message, ev.filename + ':' + ev.lineno + ':' + ev.colno, ev.error); } catch (e) { console.error('Error logging failed', e); }
+});
+
 const bellButton = document.getElementById('bellButton');
 const motionButton = document.getElementById('motionButton');
 // CountAPI / visitor constants
@@ -175,6 +180,9 @@ async function generateSynthBellBuffer(durationSeconds = 3.0) {
 }
 
 async function playBell() {
+  try {
+    // wrap to surface any errors
+  } catch (e) { console.error('playBell wrapper error', e); }
   const ctx = ensureAudioContext();
   const now = ctx.currentTime;
 
@@ -189,7 +197,8 @@ async function playBell() {
   }
 
   const buffer = await loadBellBuffer();
-  if (buffer) {
+  try {
+    if (buffer) {
     const src = ctx.createBufferSource();
     src.buffer = buffer;
     const gain = ctx.createGain();
@@ -199,8 +208,8 @@ async function playBell() {
     gain.connect(ctx.destination);
     src.onended = () => console.log('bell playback ended');
     console.log('Starting bell playback, buffer duration:', buffer.duration);
-    src.start(now);
-  } else {
+      src.start(now);
+    } else {
     // fallback: simple synthetic bell (lightweight)
     const master = ctx.createGain();
     master.gain.setValueAtTime(0.9, now);
@@ -222,7 +231,7 @@ async function playBell() {
       osc.start(now);
       osc.stop(now + 2.0 + i*0.25);
     });
-  }
+  } catch (e) { console.error('playBell runtime error', e); }
 
   // visual feedback — keep animation long enough for ringing
   bellButton.classList.add('ringing');
@@ -230,19 +239,27 @@ async function playBell() {
   setTimeout(() => bellButton.classList.remove('ringing'), 1600);
 }
 
-bellButton.addEventListener('click', async () => {
-  // resume context on user gesture if suspended
-  if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
-  playBell();
-});
+if (bellButton) {
+  bellButton.addEventListener('click', async () => {
+    try {
+      // resume context on user gesture if suspended
+      if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
+      await playBell();
+    } catch (e) { console.error('click handler error', e); }
+  });
 
-bellButton.addEventListener('keydown', async (e) => {
-  if (e.key === ' ' || e.key === 'Enter') {
-    e.preventDefault();
-    if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
-    playBell();
-  }
-});
+  bellButton.addEventListener('keydown', async (e) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      try {
+        if (audioCtx && audioCtx.state === 'suspended') await audioCtx.resume();
+        await playBell();
+      } catch (err) { console.error('keydown handler error', err); }
+    }
+  });
+} else {
+  console.warn('bellButton element not found; click/keyboard handlers skipped');
+}
 
 // Motion handling
 async function enableMotion() {
@@ -294,9 +311,15 @@ function handleMotion(e) {
 }
 
 // wire motion toggle button
-motionButton.addEventListener('click', async () => {
-  if (!motionEnabled) await enableMotion(); else disableMotion();
-});
+if (motionButton) {
+  motionButton.addEventListener('click', async () => {
+    try {
+      if (!motionEnabled) await enableMotion(); else disableMotion();
+    } catch (e) { console.error('motion button handler error', e); }
+  });
+} else {
+  console.warn('motionButton element not found; motion toggle disabled');
+}
 
 // if page is hidden, disable motion to save battery
 document.addEventListener('visibilitychange', () => {
