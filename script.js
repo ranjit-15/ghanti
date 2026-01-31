@@ -8,35 +8,27 @@ const SHAKE_THRESHOLD = 15; // m/s^2 (tune if needed)
 const SHAKE_COOLDOWN = 900; // ms between shakes
 let audioUnlocked = false;
 
-// Visitor counter: use CountAPI and localStorage to count unique users once per browser
-const COUNT_API_NAMESPACE = 'ranjit-15-ghanti';
-const COUNT_API_KEY = 'visitors';
-const VISITOR_FLAG = 'ghanti_counted_v1';
-
+// Visitor counter: server-backed unique-user counting
 async function updateVisitorCount() {
   const el = document.getElementById('visitorCount');
   if (!el) return;
-  const hasCounted = !!localStorage.getItem(VISITOR_FLAG);
   try {
-    if (!hasCounted) {
-      // increment counter for this new user
-      const resp = await fetch(`https://api.countapi.xyz/hit/${COUNT_API_NAMESPACE}/${COUNT_API_KEY}`);
-      if (resp.ok) {
-        const data = await resp.json();
-        el.textContent = String(data.value || 0);
-        localStorage.setItem(VISITOR_FLAG, String(Date.now()));
-        return;
-      }
+    // POST /api/visit will set a cookie and increment only for new browsers
+    const resp = await fetch('/api/visit', { method: 'POST', credentials: 'same-origin' });
+    if (resp.ok) {
+      const data = await resp.json();
+      el.textContent = String(data.count || 0);
+      return;
     }
-    // if already counted (or increment failed), just read current value
-    const getResp = await fetch(`https://api.countapi.xyz/get/${COUNT_API_NAMESPACE}/${COUNT_API_KEY}`);
+    // fallback: try GET count
+    const getResp = await fetch('/api/count');
     if (getResp.ok) {
       const d = await getResp.json();
-      el.textContent = String(d.value || 0);
+      el.textContent = String(d.count || 0);
       return;
     }
   } catch (err) {
-    console.warn('Visitor count update failed', err);
+    console.warn('Server visitor count failed, falling back to client-only count', err);
   }
   el.textContent = '—';
 }
