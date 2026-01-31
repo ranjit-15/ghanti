@@ -25,6 +25,13 @@
       </svg>
     </button>
   </main>
+  <section class="vote-panel" aria-label="Vote">
+    <div class="vote-question">Do you vote?</div>
+    <div class="vote-buttons">
+      <button id="voteYes" class="vote-btn yes" aria-pressed="false">Yes <span class="count" id="yesCount">—</span></button>
+      <button id="voteNo" class="vote-btn no" aria-pressed="false">No <span class="count" id="noCount">—</span></button>
+    </div>
+  </section>
   <button id="motionButton" class="motion-button" title="Enable motion (shake to ring)">Motion: Off</button>
   <script src="script.js"></script>
 </body>

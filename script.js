@@ -1,5 +1,22 @@
 const bellButton = document.getElementById('bellButton');
 const motionButton = document.getElementById('motionButton');
+// CountAPI / visitor constants
+const COUNT_API_NAMESPACE = 'ghanti';
+const COUNT_API_KEY = 'visitors';
+const VISITOR_FLAG = 'ghanti_visited_v1';
+
+// Vote keys and local storage flag
+const VOTE_YES_KEY = 'votes_yes';
+const VOTE_NO_KEY = 'votes_no';
+const USER_VOTE_FLAG = 'ghanti_user_vote';
+// local fallback keys used when CountAPI is unreachable
+const LOCAL_VOTES_YES = 'local_votes_yes_v1';
+const LOCAL_VOTES_NO = 'local_votes_no_v1';
+
+const voteYesBtn = document.getElementById('voteYes');
+const voteNoBtn = document.getElementById('voteNo');
+const yesCountEl = document.getElementById('yesCount');
+const noCountEl = document.getElementById('noCount');
 let audioCtx = null;
 let bellBuffer = null;
 let motionEnabled = false;
@@ -8,34 +25,120 @@ const SHAKE_THRESHOLD = 15; // m/s^2 (tune if needed)
 const SHAKE_COOLDOWN = 900; // ms between shakes
 let audioUnlocked = false;
 
-// Visitor counter: server-backed unique-user counting
+// Visitor counter: local-only per-browser counting (no external API)
 async function updateVisitorCount() {
   const el = document.getElementById('visitorCount');
+  const badge = document.getElementById('modeBadge');
+  if (badge) badge.textContent = 'Mode: Local-only';
   if (!el) return;
-  try {
-    // POST /api/visit will set a cookie and increment only for new browsers
-    const resp = await fetch('/api/visit', { method: 'POST', credentials: 'same-origin' });
-    if (resp.ok) {
-      const data = await resp.json();
-      el.textContent = String(data.count || 0);
-      return;
-    }
-    // fallback: try GET count
-    const getResp = await fetch('/api/count');
-    if (getResp.ok) {
-      const d = await getResp.json();
-      el.textContent = String(d.count || 0);
-      return;
-    }
-  } catch (err) {
-    console.warn('Server visitor count failed, falling back to client-only count', err);
+  const hasCounted = !!localStorage.getItem(VISITOR_FLAG);
+  let count = Number(localStorage.getItem('local_visitors_v1') || 0);
+  if (!hasCounted) {
+    count += 1;
+    localStorage.setItem('local_visitors_v1', String(count));
+    localStorage.setItem(VISITOR_FLAG, String(Date.now()));
   }
-  el.textContent = '—';
+  el.textContent = String(count);
 }
 
 // update count on load
 window.addEventListener('load', () => {
   updateVisitorCount().catch(()=>{});
+  // load current votes
+  updateVoteUI().catch(()=>{});
+});
+
+// ----- Voting (Yes / No) using CountAPI + localStorage for per-browser uniqueness -----
+function voteKey(choice) {
+  return choice === 'yes' ? VOTE_YES_KEY : VOTE_NO_KEY;
+}
+
+async function fetchCount(key) {
+  // local-only: read counts from localStorage. Keys used by this app:
+  // - visitor count stored at 'local_visitors_v1'
+  // - votes stored at VOTE_YES_KEY and VOTE_NO_KEY (fallback: LOCAL_VOTES_*)
+  try {
+    if (key === COUNT_API_KEY) {
+      return Number(localStorage.getItem('local_visitors_v1') || 0);
+    }
+    const v = Number(localStorage.getItem(key) || 0);
+    if (v) return v;
+    if (key === VOTE_YES_KEY) return Number(localStorage.getItem(LOCAL_VOTES_YES) || 0);
+    if (key === VOTE_NO_KEY) return Number(localStorage.getItem(LOCAL_VOTES_NO) || 0);
+    return 0;
+  } catch (err) {
+    console.warn('fetchCount (local) failed', err);
+    return 0;
+  }
+}
+
+async function updateCount(key, amount = 1) {
+  try {
+    // local-only increment in localStorage
+    const cur = Number(localStorage.getItem(key) || 0);
+    const next = cur + amount;
+    localStorage.setItem(key, String(next));
+    return next;
+  } catch (err) {
+    console.warn('updateCount (local) failed', err);
+    return null;
+  }
+}
+
+async function updateVoteUI() {
+  let yes = await fetchCount(VOTE_YES_KEY);
+  let no = await fetchCount(VOTE_NO_KEY);
+  // if CountAPI unreachable, fall back to local stored counts
+  if (yes === null) yes = Number(localStorage.getItem(LOCAL_VOTES_YES) || 0);
+  if (no === null) no = Number(localStorage.getItem(LOCAL_VOTES_NO) || 0);
+  yesCountEl.textContent = (yes === null) ? '—' : String(yes);
+  noCountEl.textContent = (no === null) ? '—' : String(no);
+  const my = localStorage.getItem(USER_VOTE_FLAG);
+  voteYesBtn.classList.toggle('active', my === 'yes');
+  voteNoBtn.classList.toggle('active', my === 'no');
+  voteYesBtn.setAttribute('aria-pressed', my === 'yes');
+  voteNoBtn.setAttribute('aria-pressed', my === 'no');
+  // enforce single chance: disable buttons after vote
+  if (my === 'yes' || my === 'no') {
+    voteYesBtn.disabled = true;
+    voteNoBtn.disabled = true;
+  } else {
+    voteYesBtn.disabled = false;
+    voteNoBtn.disabled = false;
+  }
+}
+
+async function castVote(choice) {
+  const prev = localStorage.getItem(USER_VOTE_FLAG);
+  // enforce single chance: if user already voted, do nothing
+  if (prev) return;
+  // optimistically lock user vote locally so they cannot vote again
+  localStorage.setItem(USER_VOTE_FLAG, choice);
+  voteYesBtn.disabled = true;
+  voteNoBtn.disabled = true;
+  voteYesBtn.classList.toggle('active', choice === 'yes');
+  voteNoBtn.classList.toggle('active', choice === 'no');
+  voteYesBtn.setAttribute('aria-pressed', choice === 'yes');
+  voteNoBtn.setAttribute('aria-pressed', choice === 'no');
+
+  // try to update CountAPI; if it fails, increment local fallback counter
+  const key = voteKey(choice);
+  const updated = await updateCount(key, 1);
+  if (updated === null) {
+    // network failed — increment local fallback count
+    const localKey = (choice === 'yes') ? LOCAL_VOTES_YES : LOCAL_VOTES_NO;
+    const cur = Number(localStorage.getItem(localKey) || 0);
+    localStorage.setItem(localKey, String(cur + 1));
+  }
+  // refresh UI from whichever source is available
+  await updateVoteUI();
+}
+
+voteYesBtn.addEventListener('click', async () => {
+  await castVote('yes');
+});
+voteNoBtn.addEventListener('click', async () => {
+  await castVote('no');
 });
 
 function ensureAudioContext() {

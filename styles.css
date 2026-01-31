@@ -6,8 +6,12 @@ html, body { height:100%; margin:0; font-family: system-ui, Arial, sans-serif; }
 .top-header .title { pointer-events:auto; display:flex; align-items:center; gap:12px; background:rgba(255,255,255,0.0); padding:8px 14px; border-radius:10px; }
 .top-header h1 { margin:0; font-size:32px; font-weight:800; color:#222; letter-spacing:0.6px; }
 .top-bell-icon { color:var(--bell-color); width:44px; height:44px; }
- .visitor { position:absolute; right:18px; top:18px; pointer-events:auto; background: rgba(255,255,255,0.95); padding:6px 10px; border-radius:10px; font-weight:700; color:#222; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
- .visitor #visitorCount { color:#0b6; }
+.visitor { position:absolute; right:18px; top:18px; pointer-events:auto; background: rgba(255,255,255,0.95); padding:6px 10px; border-radius:10px; font-weight:700; color:#222; box-shadow:0 6px 18px rgba(0,0,0,0.08); }
+.visitor #visitorCount { color:#0b6; }
+/* mode badge */
+/* mode-badge removed */
+/* reserve header space so content doesn't overlap */
+body { padding-top: 96px; }
 main { display:flex; align-items:center; justify-content:center; min-height: calc(100vh - 96px); }
 #bellButton { background:transparent; border:none; cursor:pointer; padding:18px; border-radius:18px; display:inline-flex; align-items:center; justify-content:center; color:var(--bell-color); transition:transform .15s ease, box-shadow .15s; position:relative; }
 #bellButton:focus { outline: 3px solid rgba(0,0,0,0.12); }
@@ -57,6 +61,12 @@ main { display:flex; align-items:center; justify-content:center; min-height: cal
 		border-width: 6px;
 		box-shadow: 0 0 40px var(--ring-color);
 	}
+	/* smaller header on small screens */
+	.top-header { height:64px; }
+	.top-header h1 { font-size:20px; }
+	body { padding-top: 64px; }
+	.visitor { right:10px; top:10px; padding:4px 8px; font-size:14px; }
+
 }
 
 /* Motion toggle button */
@@ -90,4 +100,19 @@ main { display:flex; align-items:center; justify-content:center; min-height: cal
 
 @media (max-width: 420px) {
 	.motion-button { bottom: 14px; left: 50%; transform: translateX(-50%); padding: 12px 14px; font-size: 18px; min-width: 120px; border-radius: 12px; }
+}
+
+/* Vote panel */
+.vote-panel { position: fixed; top: 106px; left: 50%; transform: translateX(-50%); z-index: 55; background: rgba(255,255,255,0.9); padding: 10px 14px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.08); display:flex; align-items:center; gap:12px; }
+.vote-question { font-weight:800; color:#222; margin-right:8px; }
+.vote-buttons { display:flex; gap:8px; }
+.vote-btn { background: #111827; color: white; border: none; padding: 8px 12px; border-radius: 10px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:8px; min-width:86px; justify-content:center; }
+.vote-btn .count { font-weight:900; margin-left:6px; color:#ffd54a; }
+.vote-btn.yes { background: linear-gradient(180deg,#2ecc71,#16a34a); color:#04260f; }
+.vote-btn.no { background: linear-gradient(180deg,#ef4444,#b91c1c); }
+.vote-btn.active { box-shadow: 0 8px 26px rgba(0,0,0,0.18); transform: translateY(-2px); }
+
+@media (max-width:640px) {
+	.vote-panel { top:72px; left: 12px; transform:none; right:12px; justify-content:space-between; }
+	.vote-question { font-size:14px; }
 }
