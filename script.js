@@ -231,14 +231,13 @@ async function playBell() {
         osc.stop(now + 2.0 + i*0.25);
       });
     }
+    // visual feedback — keep animation long enough for ringing
+    bellButton.classList.add('ringing');
+    // remove after 1.6s (matches CSS pulse)
+    setTimeout(() => bellButton.classList.remove('ringing'), 1600);
   } catch (e) {
     console.error('playBell runtime error', e);
   }
-
-  // visual feedback — keep animation long enough for ringing
-  bellButton.classList.add('ringing');
-  // remove after 1.6s (matches CSS pulse)
-  setTimeout(() => bellButton.classList.remove('ringing'), 1600);
 }
 
 if (bellButton) {
